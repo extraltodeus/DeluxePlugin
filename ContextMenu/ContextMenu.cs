@@ -2,6 +2,7 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
 using SimpleJSON;
 
 namespace DeluxePlugin
@@ -9,17 +10,22 @@ namespace DeluxePlugin
     public class ContextMenu: MVRScript
     {
         protected Dictionary<string, float> morphDict = new Dictionary<string, float>();
+        protected JSONStorableFloat defautHeight;
 
         List<Atom> buttons = new List<Atom>();
         int buttonIndex = 0;
-        protected float Yshift = 0f;
         const float BUTTON_SPACING = .07f;
 
         public override void Init()
         {
             try
             {
-                StartCoroutine(Setup());
+              defautHeight = new JSONStorableFloat("Default height", heightByDef, 0.0f, 2.0f, true);
+              defautHeight.storeType = JSONStorableParam.StoreType.Full;
+              RegisterFloat(defautHeight);
+              CreateSlider(defautHeight, true);
+
+              StartCoroutine(Setup());
             }
             catch (Exception e)
             {
@@ -27,7 +33,7 @@ namespace DeluxePlugin
             }
         }
 
-        private void saveMorphs()
+        private void saveLoadMorphs(bool saveM)
         {
             JSONStorable geometry = containingAtom.GetStorableByID("geometry");
             DAZCharacterSelector character = geometry as DAZCharacterSelector;
@@ -35,23 +41,14 @@ namespace DeluxePlugin
 
             morphControl.GetMorphDisplayNames().ForEach((name) =>
             {
+              if(saveM){
                 morphDict[name] = morphControl.GetMorphByDisplayName(name).morphValue;
-
-            });
-        }
-
-        private void loadMorphs()
-        {
-            JSONStorable geometry = containingAtom.GetStorableByID("geometry");
-            DAZCharacterSelector character = geometry as DAZCharacterSelector;
-            GenerateDAZMorphsControlUI morphControl = character.morphsControlUI;
-
-            morphControl.GetMorphDisplayNames().ForEach((name) =>
-            {
+              }else{
                 morphControl.GetMorphByDisplayName(name).morphValue = morphDict[name];
-
+              }
             });
         }
+
 
         IEnumerator Setup()
         {
@@ -78,16 +75,12 @@ namespace DeluxePlugin
 
             CreateWorldButton("Quicksave Morphs", () =>
             {
-                // SuperController.singleton.ShowMainHUD();
-                // SuperController.singleton.SelectController(containingAtom.mainController);
-                saveMorphs();
+                saveLoadMorphs(true);
             });
 
             CreateWorldButton("Quickload Morphs", () =>
             {
-                // SuperController.singleton.ShowMainHUD();
-                // SuperController.singleton.SelectController(containingAtom.mainController);
-                loadMorphs();
+                saveLoadMorphs(false);
             });
         }
 
@@ -163,10 +156,18 @@ namespace DeluxePlugin
                 return;
             }
 
-            atom.mainController.transform.SetPositionAndRotation(controller.transform.position, controller.transform.rotation);
-            atom.mainController.transform.Translate(.42f, Yshift, 0, Space.Self);
+            Transform tc = SuperController.singleton.lookCamera.transform;
+            Quaternion cr = tc.rotation;
+            Vector3 pc  = tc.position;
+
+            float currentHeight = (pc[1]-defautHeight.val)/3+defautHeight.val;
+            cr[0] = 0;
+            cr[2] = 0;
+
+            atom.mainController.transform.SetPositionAndRotation(controller.transform.position, cr);
+            atom.mainController.transform.Translate(defaultDistance, currentHeight, 0, Space.Self);
             atom.mainController.transform.Translate(0, -BUTTON_SPACING * index, 0, Space.World);
-            atom.mainController.transform.LookAt(SuperController.singleton.lookCamera.transform);
+            atom.mainController.transform.LookAt(pc);
 
         }
 
@@ -177,11 +178,6 @@ namespace DeluxePlugin
             try
             {
               bool visibilityState = SuperController.singleton.GetSelectedAtom() == containingAtom;
-
-              if (visibilityState && SuperController.singleton.GetSelectedController().name == "control")
-                Yshift = 1.4f;
-              else
-                Yshift = 0;
 
                 bool visChanged = false;
                 if (visibilityState != lastVisibility)
@@ -203,7 +199,7 @@ namespace DeluxePlugin
 
                     if (visChanged || lastController)
                     {
-                        RestorePosition(button, SuperController.singleton.GetSelectedController(), index);
+                        RestorePosition(button, containingAtom.mainController, index);
                     }
                     index++;
                 });
@@ -226,5 +222,8 @@ namespace DeluxePlugin
                 }
             });
         }
+
+        private float defaultDistance = -0.45f;
+        private float heightByDef = 1.6f;
     }
 }
