@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
@@ -35,18 +35,21 @@ namespace DeluxePlugin
 
         private void saveLoadMorphs(bool saveM)
         {
+            int C = 0;
             JSONStorable geometry = containingAtom.GetStorableByID("geometry");
             DAZCharacterSelector character = geometry as DAZCharacterSelector;
             GenerateDAZMorphsControlUI morphControl = character.morphsControlUI;
 
             morphControl.GetMorphDisplayNames().ForEach((name) =>
             {
-              if(saveM){
+              if(saveM == true){
                 morphDict[name] = morphControl.GetMorphByDisplayName(name).morphValue;
               }else{
                 morphControl.GetMorphByDisplayName(name).morphValue = morphDict[name];
               }
+                C++;
             });
+            SuperController.LogMessage("Morph total : "+C.ToString());
         }
 
 
@@ -156,13 +159,18 @@ namespace DeluxePlugin
                 return;
             }
 
+            Vector3 headPos = containingAtom.GetStorableByID("headControl").transform.position;
+            float headY = headPos[1];
+
             Transform tc = SuperController.singleton.lookCamera.transform;
             Quaternion cr = tc.rotation;
             Vector3 pc  = tc.position;
 
-            float currentHeight = (pc[1]-defautHeight.val)/3+defautHeight.val;
-            cr[0] = 0;
+            float currentHeight = (defautHeight.val + headY + pc[1]/3) / 2.3333f;
             cr[2] = 0;
+            cr[0] = 0;
+
+            pc[1] = currentHeight;
 
             atom.mainController.transform.SetPositionAndRotation(controller.transform.position, cr);
             atom.mainController.transform.Translate(defaultDistance, currentHeight, 0, Space.Self);
